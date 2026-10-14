@@ -490,7 +490,7 @@ export default function GestionInvitados({ params }: { params: Promise<{ id: str
                       </div>
 
                       <div>
-                        <div style={{ display: "flex", alignItems: "center", gap 8 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                           <span style={{ fontWeight: 700, fontSize: "0.95rem" }}>{inv.nombre}</span>
                           <span style={{ fontSize: "0.7rem", padding: "2px 8px", borderRadius: "999px", background: inv.tipo_pase.includes("VIP") ? "rgba(234, 179, 8, 0.2)" : "rgba(217, 70, 239, 0.2)", color: inv.tipo_pase.includes("VIP") ? "#facc15" : "#f0abfc", border: "1px solid rgba(255,255,255,0.1)" }}>
                             {inv.tipo_pase}
