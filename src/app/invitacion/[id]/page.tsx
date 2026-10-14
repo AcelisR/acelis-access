@@ -143,14 +143,38 @@ function ContenidoInvitacion({ eventoId }: { eventoId: string }) {
     if (!cardRef.current) return;
     setDescargando(true);
     try {
-      const dataUrl = await toPng(cardRef.current, { cacheBust: true, pixelRatio: 2 });
+      const dataUrl = await toPng(cardRef.current, { 
+        cacheBust: true, 
+        pixelRatio: 2,
+        backgroundColor: "#0d0917"
+      });
+
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+      const fileName = `Pase-${(paseGenerado?.nombre || "Acceso").replace(/\s+/g, "_")}.png`;
+      const file = new File([blob], fileName, { type: "image/png" });
+
+      // Compatibilidad con iPhone (iOS Safari) y Android mediante Web Share API
+      if (typeof navigator !== "undefined" && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: `Free Pass - ${evento?.nombre || "Evento"}`,
+          text: `Pase digital de acceso para ${paseGenerado?.nombre}`,
+        });
+        setDescargando(false);
+        return;
+      }
+
+      // Descarga directa para navegadores de escritorio (Chrome, Firefox, Edge)
       const link = document.createElement("a");
-      link.download = `Pase-${paseGenerado.nombre.replace(/\s+/g, "_")}.png`;
+      link.download = fileName;
       link.href = dataUrl;
       link.click();
-    } catch (err) {
-      console.error("Error al descargar imagen:", err);
-      alert("Puedes tomar una captura de pantalla a la tarjeta para guardarla en tu galería.");
+    } catch (err: any) {
+      if (err?.name !== "AbortError") {
+        console.error("Error al descargar imagen:", err);
+        alert("Puedes mantener presionada la tarjeta o tomar una captura de pantalla para guardarla en tu galería.");
+      }
     } finally {
       setDescargando(false);
     }
