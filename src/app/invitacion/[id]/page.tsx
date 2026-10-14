@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef, use } from "react";
+import { useEffect, useState, useRef, use, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { QRCodeSVG } from "qrcode.react";
@@ -18,7 +18,7 @@ import {
   MessageCircle
 } from "lucide-react";
 
-// Función para mostrar formato limpio de fiesta: DD/MM/AAAA · HH:mm hrs (sin AM/PM)
+// Formato limpio de fecha: DD/MM/AAAA · HH:mm hrs
 const formatearFecha = (fechaStr?: string) => {
   if (!fechaStr) return "Por confirmar";
   try {
@@ -37,8 +37,7 @@ const formatearFecha = (fechaStr?: string) => {
   }
 };
 
-export default function InvitacionPublica({ params }: { params: Promise<{ id: string }> }) {
-  const { id: eventoId } = use(params);
+function ContenidoInvitacion({ eventoId }: { eventoId: string }) {
   const searchParams = useSearchParams();
   const invitadoIdParam = searchParams.get("invitadoId");
 
@@ -49,7 +48,7 @@ export default function InvitacionPublica({ params }: { params: Promise<{ id: st
   // Formulario
   const [nombre, setNombre] = useState("");
   const [rut, setRut] = useState("");
-  const [telefono, setTelefono] = useState(""); // Guarda solo los 9 dígitos
+  const [telefono, setTelefono] = useState("");
   const [email, setEmail] = useState("");
   const [registrando, setRegistrando] = useState(false);
   const [descargando, setDescargando] = useState(false);
@@ -58,39 +57,44 @@ export default function InvitacionPublica({ params }: { params: Promise<{ id: st
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const fetchDatos = async () => {
-      // 1. Cargar el evento
-      const { data: dataEvento, error: errorEvento } = await supabase
-        .from("eventos")
-        .select("*")
-        .eq("id", eventoId)
-        .single();
-
-      if (errorEvento || !dataEvento) {
-        setEventoNoExiste(true);
-        setLoading(false);
-        return;
-      }
-      setEvento(dataEvento);
-
-      // 2. Si la URL trae un invitadoId, cargar directamente su pase
-      if (invitadoIdParam) {
-        const { data: dataInvitado, error: errorInvitado } = await supabase
-          .from("invitados")
+    const cargarTodo = async () => {
+      try {
+        // 1. Cargar datos del evento
+        const { data: evData, error: evError } = await supabase
+          .from("eventos")
           .select("*")
-          .eq("id", invitadoIdParam)
-          .eq("evento_id", eventoId)
+          .eq("id", eventoId)
           .single();
 
-        if (dataInvitado && !errorInvitado) {
-          setPaseGenerado(dataInvitado);
+        if (evError || !evData) {
+          setEventoNoExiste(true);
+          setLoading(false);
+          return;
         }
-      }
+        setEvento(evData);
 
-      setLoading(false);
+        // 2. Si viene invitadoId en la URL, cargar directo el invitado
+        if (invitadoIdParam) {
+          const { data: invData, error: invError } = await supabase
+            .from("invitados")
+            .select("*")
+            .eq("id", invitadoIdParam)
+            .single();
+
+          if (invData && !invError) {
+            setPaseGenerado(invData);
+          } else {
+            console.error("Error al buscar invitado:", invError);
+          }
+        }
+      } catch (err) {
+        console.error("Error general:", err);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    fetchDatos();
+    cargarTodo();
   }, [eventoId, invitadoIdParam]);
 
   const handleTelefonoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -541,5 +545,21 @@ export default function InvitacionPublica({ params }: { params: Promise<{ id: st
       </footer>
 
     </main>
+  );
+}
+
+export default function InvitacionPublica({ params }: { params: Promise<{ id: string }> }) {
+  const { id: eventoId } = use(params);
+
+  return (
+    <Suspense
+      fallback={
+        <div style={{ minHeight: "100vh", backgroundColor: "#07050e", display: "flex", alignItems: "center", justifyContent: "center", color: "#f0abfc" }}>
+          Cargando invitación...
+        </div>
+      }
+    >
+      <ContenidoInvitacion eventoId={eventoId} />
+    </Suspense>
   );
 }
