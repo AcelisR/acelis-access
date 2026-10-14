@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useRef, use } from "react";
+import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
 import { QRCodeSVG } from "qrcode.react";
 import { toPng } from "html-to-image";
@@ -38,6 +39,8 @@ const formatearFecha = (fechaStr?: string) => {
 
 export default function InvitacionPublica({ params }: { params: Promise<{ id: string }> }) {
   const { id: eventoId } = use(params);
+  const searchParams = useSearchParams();
+  const invitadoIdParam = searchParams.get("invitadoId");
 
   const [evento, setEvento] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -55,23 +58,40 @@ export default function InvitacionPublica({ params }: { params: Promise<{ id: st
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const fetchEvento = async () => {
-      const { data, error } = await supabase
+    const fetchDatos = async () => {
+      // 1. Cargar el evento
+      const { data: dataEvento, error: errorEvento } = await supabase
         .from("eventos")
         .select("*")
         .eq("id", eventoId)
         .single();
 
-      if (error || !data) {
+      if (errorEvento || !dataEvento) {
         setEventoNoExiste(true);
-      } else {
-        setEvento(data);
+        setLoading(false);
+        return;
       }
+      setEvento(dataEvento);
+
+      // 2. Si la URL trae un invitadoId, cargar directamente su pase
+      if (invitadoIdParam) {
+        const { data: dataInvitado, error: errorInvitado } = await supabase
+          .from("invitados")
+          .select("*")
+          .eq("id", invitadoIdParam)
+          .eq("evento_id", eventoId)
+          .single();
+
+        if (dataInvitado && !errorInvitado) {
+          setPaseGenerado(dataInvitado);
+        }
+      }
+
       setLoading(false);
     };
 
-    fetchEvento();
-  }, [eventoId]);
+    fetchDatos();
+  }, [eventoId, invitadoIdParam]);
 
   const handleTelefonoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value.replace(/\D/g, "").slice(0, 9);
@@ -134,7 +154,7 @@ export default function InvitacionPublica({ params }: { params: Promise<{ id: st
 
   const handleEnviarMiWhatsApp = () => {
     if (!paseGenerado) return;
-    const linkPase = window.location.href;
+    const linkPase = `${window.location.origin}/invitacion/${eventoId}?invitadoId=${paseGenerado.id}`;
     const cleanPhone = (paseGenerado.telefono || "").replace(/\D/g, "");
     const mensaje = encodeURIComponent(
       `¡Hola ${paseGenerado.nombre}! 🎉 Aquí tienes tu Free Pass para "${evento?.nombre}".\n\nAccede a tu pase digital aquí:\n${linkPase}`
@@ -220,7 +240,7 @@ export default function InvitacionPublica({ params }: { params: Promise<{ id: st
                   </div>
                 </div>
               ) : (
-                /* 2. MODO TARJETA FLYER */
+                /* 2. MODO TARJETA FLYER (NOMBRE Y RUT) */
                 <div style={{ borderRadius: "1.5rem", overflow: "hidden", background: "linear-gradient(180deg, #161026 0%, #0d0917 100%)", border: "2px solid rgba(6, 182, 212, 0.5)", boxShadow: "0 20px 50px rgba(0,0,0,0.8)", position: "relative" }}>
                   
                   {evento?.flyer_url ? (
